@@ -1,0 +1,14 @@
+name = "first-web-app"
+type = "javascript"
+account_id = ""
+workers_dev = true
+route = ""
+zone_id = ""
+
+[build]
+command = "pnpm run build"
+cwd = "./"
+
+[env.production]
+name = "first-web-app-prod"
+workers_dev = false
