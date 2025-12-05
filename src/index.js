@@ -155,7 +155,7 @@ function getHTML() {
           <li>🛠️ Easy to develop and deploy</li>
         </ul>
       </div>
-
+      <h1>Jane First Web App</h1>
       <div class="status" id="status">Ready to deploy!</div>
     </div>
 
