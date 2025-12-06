@@ -1,20 +1,26 @@
 {
-  "name": "cloudflare-worker-project",
-  "version": "1.0.0",
-  "description": "A basic Cloudflare Workers project",
-  "main": "src/index.js",
+  "name": "jane-app",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "build": "wrangler build"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
-  "keywords": [
-    "cloudflare",
-    "workers"
-  ],
-  "author": "",
-  "license": "MIT",
+  "dependencies": {
+    "next": "16.0.7",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
   "devDependencies": {
-    "wrangler": "^4.53.0"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.7",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
