@@ -1,0 +1,13 @@
+{
+  // Project name used by Wrangler
+  "name": "jane-app",
+
+  // Compatibility date for Cloudflare runtime (set to today)
+  "compatibility_date": "2025-12-06",
+
+  // Deploy only the static `public` directory as assets. This satisfies
+  // `wrangler deploy` when the repository doesn't contain a Worker entrypoint.
+  "assets": {
+    "directory": "./public"
+  }
+}
