@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useState } from "react";
+import Image from "next/image";
+import { FormEvent, useMemo, useState } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/nest";
@@ -16,6 +17,24 @@ type Post = {
   title: string;
   content: string | null;
   published: boolean | null;
+};
+
+type TokenEntry = {
+  id: string;
+  label: string;
+  token: string;
+};
+
+type GitHubUser = {
+  login: string;
+  id: number;
+  avatar_url: string;
+  html_url: string;
+  name: string | null;
+  email: string | null;
+  followers: number;
+  following: number;
+  public_repos: number;
 };
 
 const formStyles =
@@ -47,12 +66,37 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function githubFetchMe(token: string): Promise<GitHubUser> {
+  const response = await fetch("/api/github/me", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(token ? { token } : {}),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `请求失败 (${response.status})`);
+  }
+
+  return response.json() as Promise<GitHubUser>;
+}
+
 export default function Home() {
   const [userStatus, setUserStatus] = useState<string>("");
   const [postStatus, setPostStatus] = useState<string>("");
   const [publishStatus, setPublishStatus] = useState<string>("");
   const [searchStatus, setSearchStatus] = useState<string>("");
   const [searchResults, setSearchResults] = useState<Post[]>([]);
+  const [tokenEntries, setTokenEntries] = useState<TokenEntry[]>([]);
+  const [githubStatus, setGithubStatus] = useState<string>("");
+  const [githubUser, setGithubUser] = useState<GitHubUser | null>(null);
+  const [activeEntryId, setActiveEntryId] = useState<string>("");
+  const [activeSourceLabel, setActiveSourceLabel] = useState<string>("");
+
+  const activeEntry = useMemo(
+    () => tokenEntries.find((entry) => entry.id === activeEntryId) ?? null,
+    [activeEntryId, tokenEntries],
+  );
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -137,6 +181,67 @@ export default function Home() {
       setSearchStatus(posts.length ? `找到 ${posts.length} 篇文章` : "无匹配结果");
     } catch (error) {
       setSearchStatus((error as Error).message);
+    }
+  };
+
+  const handleAddTokenEntry = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const label = (formData.get("label")?.toString() ?? "").trim();
+    const token = (formData.get("token")?.toString() ?? "").trim();
+
+    if (!label || !token) {
+      setGithubStatus("请填写名称和 token");
+      return;
+    }
+
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
+    setTokenEntries((prev) => [{ id, label, token }, ...prev]);
+    setGithubStatus("已添加");
+    form.reset();
+  };
+
+  const handleDeleteTokenEntry = (id: string) => {
+    setTokenEntries((prev) => prev.filter((entry) => entry.id !== id));
+    if (activeEntryId === id) {
+      setActiveEntryId("");
+      setGithubUser(null);
+      setGithubStatus("");
+    }
+  };
+
+  const handleFetchGitHubMe = async (entry: TokenEntry) => {
+    setActiveEntryId(entry.id);
+    setActiveSourceLabel(entry.label);
+    setGithubUser(null);
+    setGithubStatus("请求中...");
+
+    try {
+      const user = await githubFetchMe(entry.token);
+      setGithubUser(user);
+      setGithubStatus(`获取成功：${user.login}`);
+    } catch (error) {
+      setGithubStatus((error as Error).message);
+    }
+  };
+
+  const handleFetchGitHubMeByEnv = async () => {
+    setActiveEntryId("");
+    setActiveSourceLabel("环境变量 GITHUB_TOKEN");
+    setGithubUser(null);
+    setGithubStatus("请求中...");
+
+    try {
+      const user = await githubFetchMe("");
+      setGithubUser(user);
+      setGithubStatus(`获取成功：${user.login}`);
+    } catch (error) {
+      setGithubStatus((error as Error).message);
     }
   };
 
@@ -268,6 +373,148 @@ export default function Home() {
             </p>
           )}
         </form>
+      </section>
+
+      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">GitHub 个人信息</h2>
+            <p className="mt-2 text-sm text-zinc-600">
+              可用「名称 + Personal Token」增/删记录，也可直接使用服务器环境变量 `GITHUB_TOKEN` 获取默认账户信息（/user）。
+            </p>
+          </div>
+          <button
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition hover:bg-zinc-800"
+            type="button"
+            onClick={handleFetchGitHubMeByEnv}
+          >
+            使用默认 GITHUB_TOKEN 获取
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <form className={formStyles} onSubmit={handleAddTokenEntry}>
+            <h3 className="text-base font-semibold">新增 token</h3>
+            <label className={labelStyles}>
+              名称
+              <input
+                className={inputStyles}
+                type="text"
+                name="label"
+                placeholder="例如：工作账号"
+                required
+              />
+            </label>
+            <label className={labelStyles}>
+              Personal Token
+              <input
+                className={inputStyles}
+                type="password"
+                name="token"
+                placeholder="ghp_..."
+                required
+              />
+            </label>
+            <button className={buttonStyles} type="submit">
+              添加
+            </button>
+            {githubStatus && (
+              <p className="text-sm text-zinc-600">{githubStatus}</p>
+            )}
+          </form>
+
+          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 className="text-base font-semibold">已保存记录</h3>
+            {tokenEntries.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-600">暂无记录</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {tokenEntries.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-zinc-100 bg-zinc-50 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-zinc-900">
+                        {entry.label}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-zinc-500">
+                        {entry.id === activeEntryId
+                          ? "当前选择"
+                          : "点击获取信息"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        className="rounded-xl bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-800"
+                        type="button"
+                        onClick={() => handleFetchGitHubMe(entry)}
+                      >
+                        获取
+                      </button>
+                      <button
+                        className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition hover:bg-zinc-100"
+                        type="button"
+                        onClick={() => handleDeleteTokenEntry(entry.id)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {githubUser && (
+            <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
+            <div className="flex items-center gap-4">
+              <Image
+                src={githubUser.avatar_url}
+                alt={githubUser.login}
+                width={56}
+                height={56}
+                className="h-14 w-14 rounded-full border border-zinc-200"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold">
+                  {githubUser.name ?? githubUser.login}
+                </p>
+                <a
+                  className="truncate text-sm text-blue-600 hover:underline"
+                  href={githubUser.html_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {githubUser.html_url}
+                </a>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-zinc-700 md:grid-cols-4">
+              <p>Login：{githubUser.login}</p>
+              <p>ID：{githubUser.id}</p>
+              <p>Followers：{githubUser.followers}</p>
+              <p>Following：{githubUser.following}</p>
+              <p className="md:col-span-2">
+                Email：{githubUser.email ?? "-"}
+              </p>
+              <p className="md:col-span-2">
+                Repos：{githubUser.public_repos}
+              </p>
+            </div>
+            {activeEntry && (
+              <p className="mt-4 text-xs text-zinc-500">
+                来源：{activeEntry.label}
+              </p>
+            )}
+            {!activeEntry && activeSourceLabel && (
+              <p className="mt-4 text-xs text-zinc-500">
+                来源：{activeSourceLabel}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {!!searchResults.length && (
