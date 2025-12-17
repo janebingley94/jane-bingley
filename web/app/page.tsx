@@ -1,10 +1,9 @@
 'use client';
 
-import Image from "next/image";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Image from 'next/image';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/nest";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 type User = {
   id: number;
@@ -20,9 +19,10 @@ type Post = {
 };
 
 type TokenEntry = {
-  id: string;
+  id: number;
   label: string;
-  token: string;
+  isDefault: boolean;
+  githubUser: GitHubUser | null;
 };
 
 type GitHubUser = {
@@ -38,25 +38,25 @@ type GitHubUser = {
 };
 
 const formStyles =
-  "flex flex-col gap-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/40";
+  'flex flex-col gap-4 rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/40';
 const panelStyles =
-  "rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/40";
-const labelStyles = "text-sm font-medium text-zinc-700 dark:text-zinc-200";
+  'rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/40';
+const labelStyles = 'text-sm font-medium text-zinc-700 dark:text-zinc-200';
 const inputStyles =
-  "mt-2 w-full rounded-xl border border-zinc-300/80 bg-white/60 px-4 py-2.5 text-base text-zinc-900 outline-none ring-0 transition placeholder:text-zinc-400 focus:border-indigo-400/80 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700/70 dark:bg-zinc-950/40 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-indigo-400/60 dark:focus:ring-indigo-400/20";
+  'mt-2 w-full rounded-xl border border-zinc-300/80 bg-white/60 px-4 py-2.5 text-base text-zinc-900 outline-none ring-0 transition placeholder:text-zinc-400 focus:border-indigo-400/80 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700/70 dark:bg-zinc-950/40 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-indigo-400/60 dark:focus:ring-indigo-400/20';
 const buttonStyles =
-  "mt-1 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-50";
+  'mt-1 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-50';
 const buttonSecondaryStyles =
-  "inline-flex items-center justify-center rounded-xl border border-zinc-300/80 bg-white/60 px-3 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/20 dark:border-zinc-700/70 dark:bg-zinc-950/40 dark:text-zinc-50 dark:hover:bg-zinc-900/50";
+  'inline-flex items-center justify-center rounded-xl border border-zinc-300/80 bg-white/60 px-3 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/20 dark:border-zinc-700/70 dark:bg-zinc-950/40 dark:text-zinc-50 dark:hover:bg-zinc-900/50';
 const buttonGhostStyles =
-  "inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/20 dark:text-zinc-200 dark:hover:bg-zinc-900/40";
+  'inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/20 dark:text-zinc-200 dark:hover:bg-zinc-900/40';
 const statusStyles =
-  "mt-3 rounded-xl border border-zinc-200/70 bg-zinc-50/70 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-900/30 dark:text-zinc-200";
+  'mt-3 rounded-xl border border-zinc-200/70 bg-zinc-50/70 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800/70 dark:bg-zinc-900/30 dark:text-zinc-200';
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -75,49 +75,79 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function githubFetchMe(token: string): Promise<GitHubUser> {
-  const response = await fetch("/api/github/me", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  return apiFetch<GitHubUser>('/github/me', {
+    method: 'POST',
     body: JSON.stringify(token ? { token } : {}),
   });
+}
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `请求失败 (${response.status})`);
-  }
+async function githubFetchMeByTokenId(tokenId: number): Promise<GitHubUser> {
+  return apiFetch<GitHubUser>('/github/me', {
+    method: 'POST',
+    body: JSON.stringify({ tokenId }),
+  });
+}
 
-  return response.json() as Promise<GitHubUser>;
+async function githubListTokens(): Promise<TokenEntry[]> {
+  return apiFetch<TokenEntry[]>('/github/tokens', { method: 'GET' });
+}
+
+async function githubCreateToken(payload: {
+  label: string;
+  token: string;
+}): Promise<TokenEntry> {
+  return apiFetch<TokenEntry>('/github/tokens', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+async function githubDeleteToken(id: number): Promise<void> {
+  await apiFetch<void>(`/github/tokens/${id}`, { method: 'DELETE' });
+}
+
+async function githubClearTokens(): Promise<void> {
+  await apiFetch<void>('/github/tokens', { method: 'DELETE' });
 }
 
 export default function Home() {
-  const [userStatus, setUserStatus] = useState<string>("");
-  const [usersStatus, setUsersStatus] = useState<string>("");
+  const [userStatus, setUserStatus] = useState<string>('');
+  const [usersStatus, setUsersStatus] = useState<string>('');
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState<boolean>(false);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
-  const [postStatus, setPostStatus] = useState<string>("");
-  const [publishStatus, setPublishStatus] = useState<string>("");
-  const [searchStatus, setSearchStatus] = useState<string>("");
+  const [postStatus, setPostStatus] = useState<string>('');
+  const [publishStatus, setPublishStatus] = useState<string>('');
+  const [searchStatus, setSearchStatus] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [tokenEntries, setTokenEntries] = useState<TokenEntry[]>([]);
-  const [githubStatus, setGithubStatus] = useState<string>("");
+  const [githubStatus, setGithubStatus] = useState<string>('');
   const [githubUser, setGithubUser] = useState<GitHubUser | null>(null);
-  const [activeEntryId, setActiveEntryId] = useState<string>("");
-  const [activeSourceLabel, setActiveSourceLabel] = useState<string>("");
+  const [activeEntryId, setActiveEntryId] = useState<number | null>(null);
+  const [activeSourceLabel, setActiveSourceLabel] = useState<string>('');
 
   const activeEntry = useMemo(
-    () => tokenEntries.find((entry) => entry.id === activeEntryId) ?? null,
+    () =>
+      activeEntryId == null
+        ? null
+        : (tokenEntries.find((entry) => entry.id === activeEntryId) ?? null),
     [activeEntryId, tokenEntries],
   );
 
+  const refreshGithubTokens = useCallback(async () => {
+    const list = await githubListTokens();
+    setTokenEntries(list);
+    return list;
+  }, []);
+
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
-    setUsersStatus("加载中...");
+    setUsersStatus('加载中...');
 
     try {
-      const list = await apiFetch<User[]>("/users", { method: "GET" });
+      const list = await apiFetch<User[]>('/users', { method: 'GET' });
       setUsers(list);
-      setUsersStatus(list.length ? `共 ${list.length} 个用户` : "暂无用户");
+      setUsersStatus(list.length ? `共 ${list.length} 个用户` : '暂无用户');
     } catch (error) {
       setUsersStatus((error as Error).message);
     } finally {
@@ -129,6 +159,32 @@ export default function Home() {
     void fetchUsers();
   }, [fetchUsers]);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = await refreshGithubTokens();
+        const defaultEntry = list.find((entry) => entry.isDefault);
+        if (!defaultEntry) return;
+
+        setActiveEntryId(defaultEntry.id);
+        setActiveSourceLabel(defaultEntry.label);
+        if (defaultEntry.githubUser) {
+          setGithubUser(defaultEntry.githubUser);
+          setGithubStatus(`已加载：${defaultEntry.githubUser.login}`);
+          return;
+        }
+
+        setGithubUser(null);
+        setGithubStatus('请求中...');
+        const user = await githubFetchMeByTokenId(defaultEntry.id);
+        setGithubUser(user);
+        setGithubStatus(`获取成功：${user.login}`);
+      } catch (error) {
+        setGithubStatus((error as Error).message);
+      }
+    })();
+  }, [refreshGithubTokens]);
+
   const handleDeleteUser = async (user: User) => {
     const ok = window.confirm(
       `确定删除用户？\n\nID: ${user.id}\nEmail: ${user.email}`,
@@ -136,10 +192,10 @@ export default function Home() {
     if (!ok) return;
 
     setDeletingUserId(user.id);
-    setUsersStatus("删除中...");
+    setUsersStatus('删除中...');
     try {
-      await apiFetch<void>(`/user/${user.id}`, { method: "DELETE" });
-      setUsersStatus("删除成功，已刷新列表");
+      await apiFetch<void>(`/user/${user.id}`, { method: 'DELETE' });
+      setUsersStatus('删除成功，已刷新列表');
       await fetchUsers();
     } catch (error) {
       setUsersStatus((error as Error).message);
@@ -153,14 +209,14 @@ export default function Home() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const payload = {
-      name: formData.get("name")?.toString() || undefined,
-      email: formData.get("email")!.toString(),
+      name: formData.get('name')?.toString() || undefined,
+      email: formData.get('email')!.toString(),
     };
-    setUserStatus("提交中...");
+    setUserStatus('提交中...');
 
     try {
-      const user = await apiFetch<User>("/user", {
-        method: "POST",
+      const user = await apiFetch<User>('/user', {
+        method: 'POST',
         body: JSON.stringify(payload),
       });
       setUserStatus(`用户已创建 (ID: ${user.id})`);
@@ -176,15 +232,15 @@ export default function Home() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const payload = {
-      title: formData.get("title")!.toString(),
-      content: formData.get("content")?.toString(),
-      authorEmail: formData.get("authorEmail")!.toString(),
+      title: formData.get('title')!.toString(),
+      content: formData.get('content')?.toString(),
+      authorEmail: formData.get('authorEmail')!.toString(),
     };
-    setPostStatus("提交中...");
+    setPostStatus('提交中...');
 
     try {
-      const post = await apiFetch<Post>("/post", {
-        method: "POST",
+      const post = await apiFetch<Post>('/post', {
+        method: 'POST',
         body: JSON.stringify(payload),
       });
       setPostStatus(`草稿创建成功 (ID: ${post.id})`);
@@ -198,12 +254,12 @@ export default function Home() {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const postId = formData.get("postId")!.toString();
-    setPublishStatus("提交中...");
+    const postId = formData.get('postId')!.toString();
+    setPublishStatus('提交中...');
 
     try {
       const post = await apiFetch<Post>(`/publish/${postId}`, {
-        method: "PUT",
+        method: 'PUT',
         body: JSON.stringify({}),
       });
       setPublishStatus(`文章已发布：${post.title}`);
@@ -217,19 +273,21 @@ export default function Home() {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const query = formData.get("keyword")!.toString();
-    setSearchStatus("搜索中...");
+    const query = formData.get('keyword')!.toString();
+    setSearchStatus('搜索中...');
     setSearchResults([]);
 
     try {
       const posts = await apiFetch<Post[]>(
         `/filtered-posts/${encodeURIComponent(query)}`,
         {
-          method: "GET",
+          method: 'GET',
         },
       );
       setSearchResults(posts);
-      setSearchStatus(posts.length ? `找到 ${posts.length} 篇文章` : "无匹配结果");
+      setSearchStatus(
+        posts.length ? `找到 ${posts.length} 篇文章` : '无匹配结果',
+      );
     } catch (error) {
       setSearchStatus((error as Error).message);
     }
@@ -237,32 +295,58 @@ export default function Home() {
 
   const handleAddTokenEntry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const label = (formData.get("label")?.toString() ?? "").trim();
-    const token = (formData.get("token")?.toString() ?? "").trim();
+    void (async () => {
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const label = (formData.get('label')?.toString() ?? '').trim();
+      const token = (formData.get('token')?.toString() ?? '').trim();
 
-    if (!label || !token) {
-      setGithubStatus("请填写名称和 token");
-      return;
-    }
+      if (!label || !token) {
+        setGithubStatus('请填写名称和 token');
+        return;
+      }
 
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
+      setGithubStatus('保存中...');
+      try {
+        const created = await githubCreateToken({ label, token });
+        form.reset();
 
-    setTokenEntries((prev) => [{ id, label, token }, ...prev]);
-    setGithubStatus("已添加");
-    form.reset();
+        await refreshGithubTokens();
+        setActiveEntryId(created.id);
+        setActiveSourceLabel(created.label);
+
+        if (created.githubUser) {
+          setGithubUser(created.githubUser);
+          setGithubStatus(`获取成功：${created.githubUser.login}`);
+          return;
+        }
+
+        setGithubUser(null);
+        setGithubStatus('请求中...');
+        const user = await githubFetchMeByTokenId(created.id);
+        setGithubUser(user);
+        setGithubStatus(`获取成功：${user.login}`);
+      } catch (error) {
+        setGithubStatus((error as Error).message);
+      }
+    })();
   };
 
-  const handleDeleteTokenEntry = (id: string) => {
-    setTokenEntries((prev) => prev.filter((entry) => entry.id !== id));
+  const handleDeleteTokenEntry = (id: number) => {
+    void (async () => {
+      try {
+        await githubDeleteToken(id);
+        await refreshGithubTokens();
+      } catch (error) {
+        setGithubStatus((error as Error).message);
+      }
+    })();
+
     if (activeEntryId === id) {
-      setActiveEntryId("");
+      setActiveEntryId(null);
+      setActiveSourceLabel('');
       setGithubUser(null);
-      setGithubStatus("");
+      setGithubStatus('');
     }
   };
 
@@ -270,10 +354,10 @@ export default function Home() {
     setActiveEntryId(entry.id);
     setActiveSourceLabel(entry.label);
     setGithubUser(null);
-    setGithubStatus("请求中...");
+    setGithubStatus('请求中...');
 
     try {
-      const user = await githubFetchMe(entry.token);
+      const user = await githubFetchMeByTokenId(entry.id);
       setGithubUser(user);
       setGithubStatus(`获取成功：${user.login}`);
     } catch (error) {
@@ -282,13 +366,13 @@ export default function Home() {
   };
 
   const handleFetchGitHubMeByEnv = async () => {
-    setActiveEntryId("");
-    setActiveSourceLabel("环境变量 GITHUB_TOKEN");
+    setActiveEntryId(null);
+    setActiveSourceLabel('环境变量 GITHUB_TOKEN');
     setGithubUser(null);
-    setGithubStatus("请求中...");
+    setGithubStatus('请求中...');
 
     try {
-      const user = await githubFetchMe("");
+      const user = await githubFetchMe('');
       setGithubUser(user);
       setGithubStatus(`获取成功：${user.login}`);
     } catch (error) {
@@ -315,7 +399,8 @@ export default function Home() {
                 博客内容管理
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                使用下方表单快速调用接口完成用户、文章与搜索操作，并在同页查看 GitHub 账户信息。
+                使用下方表单快速调用接口完成用户、文章与搜索操作，并在同页查看
+                GitHub 账户信息。
               </p>
             </div>
             <div className="sm:text-right">
@@ -336,9 +421,9 @@ export default function Home() {
                 Nest API 操作
               </h2>
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                对应接口：<span className="font-mono">/user</span>、{" "}
-                <span className="font-mono">/post</span>、{" "}
-                <span className="font-mono">/publish/:id</span>、{" "}
+                对应接口：<span className="font-mono">/user</span>、{' '}
+                <span className="font-mono">/post</span>、{' '}
+                <span className="font-mono">/publish/:id</span>、{' '}
                 <span className="font-mono">/filtered-posts/:searchString</span>
               </p>
             </div>
@@ -497,7 +582,7 @@ export default function Home() {
               onClick={() => void fetchUsers()}
               disabled={usersLoading}
             >
-              {usersLoading ? "刷新中..." : "刷新列表"}
+              {usersLoading ? '刷新中...' : '刷新列表'}
             </button>
           </div>
 
@@ -521,7 +606,7 @@ export default function Home() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        {user.name ?? "未命名用户"}
+                        {user.name ?? '未命名用户'}
                       </p>
                       <p className="mt-1 truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
                         {user.email}
@@ -537,7 +622,7 @@ export default function Home() {
                         onClick={() => void handleDeleteUser(user)}
                         disabled={deletingUserId === user.id}
                       >
-                        {deletingUserId === user.id ? "删除中..." : "删除"}
+                        {deletingUserId === user.id ? '删除中...' : '删除'}
                       </button>
                     </div>
                   </div>
@@ -554,8 +639,10 @@ export default function Home() {
                 GitHub 个人信息
               </h2>
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                用「名称 + Personal Token」保存多个来源，或直接使用环境变量{" "}
-                <span className="font-mono">GITHUB_TOKEN</span> 获取默认账户信息（{" "}
+                用「GitHub 用户名 + Personal
+                Token」保存多个来源，或直接使用环境变量{' '}
+                <span className="font-mono">GITHUB_TOKEN</span>{' '}
+                获取默认账户信息（{' '}
                 <span className="font-mono">/api/github/me</span>）。
               </p>
             </div>
@@ -573,16 +660,17 @@ export default function Home() {
               <div>
                 <h3 className="text-base font-semibold">新增 token</h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                  仅保存在浏览器内存中，刷新会清空。
+                  在浏览器输入名称和 token，然后调用接口拉取 GitHub
+                  个人信息；token 会加密存入数据库。
                 </p>
               </div>
               <label className={labelStyles}>
-                名称
+                GitHub 用户名
                 <input
                   className={inputStyles}
                   type="text"
                   name="label"
-                  placeholder="例如：工作账号"
+                  placeholder="例如：octocat"
                   required
                 />
               </label>
@@ -597,7 +685,7 @@ export default function Home() {
                 />
               </label>
               <button className={buttonStyles} type="submit">
-                添加
+                添加并获取
               </button>
               {githubStatus && (
                 <p className={statusStyles} role="status">
@@ -619,10 +707,18 @@ export default function Home() {
                     type="button"
                     className={buttonGhostStyles}
                     onClick={() => {
-                      setTokenEntries([]);
-                      setActiveEntryId("");
-                      setGithubUser(null);
-                      setGithubStatus("");
+                      void (async () => {
+                        try {
+                          await githubClearTokens();
+                          setTokenEntries([]);
+                          setActiveEntryId(null);
+                          setActiveSourceLabel('');
+                          setGithubUser(null);
+                          setGithubStatus('');
+                        } catch (error) {
+                          setGithubStatus((error as Error).message);
+                        }
+                      })();
                     }}
                   >
                     清空
@@ -642,18 +738,18 @@ export default function Home() {
                       <li
                         key={entry.id}
                         className={[
-                          "flex items-center justify-between gap-3 rounded-xl border p-3 shadow-sm transition",
+                          'flex items-center justify-between gap-3 rounded-xl border p-3 shadow-sm transition',
                           isActive
-                            ? "border-indigo-300/60 bg-indigo-50/60 dark:border-indigo-400/30 dark:bg-indigo-500/10"
-                            : "border-zinc-200/60 bg-white/50 hover:border-zinc-300/70 dark:border-zinc-800/60 dark:bg-zinc-950/20 dark:hover:border-zinc-700/70",
-                        ].join(" ")}
+                            ? 'border-indigo-300/60 bg-indigo-50/60 dark:border-indigo-400/30 dark:bg-indigo-500/10'
+                            : 'border-zinc-200/60 bg-white/50 hover:border-zinc-300/70 dark:border-zinc-800/60 dark:bg-zinc-950/20 dark:hover:border-zinc-700/70',
+                        ].join(' ')}
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                             {entry.label}
                           </p>
                           <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                            {isActive ? "当前选择" : "点击获取信息"}
+                            {isActive ? '当前选择' : '点击获取信息'}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
@@ -681,7 +777,7 @@ export default function Home() {
           </div>
 
           {githubUser && (
-            <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200/70 bg-gradient-to-b from-white/70 to-white/40 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:from-zinc-950/50 dark:to-zinc-950/20">
+            <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200/70 bg-linear-to-b from-white/70 to-white/40 p-6 shadow-sm backdrop-blur-md dark:border-zinc-800/70 dark:from-zinc-950/50 dark:to-zinc-950/20">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                   <Image
@@ -690,6 +786,7 @@ export default function Home() {
                     width={64}
                     height={64}
                     className="h-16 w-16 rounded-full border border-zinc-200/70 shadow-sm dark:border-zinc-800/70"
+                    unoptimized
                   />
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold">
@@ -721,7 +818,9 @@ export default function Home() {
 
               <div className="mt-5 grid grid-cols-1 gap-3 text-sm text-zinc-700 dark:text-zinc-200 sm:grid-cols-2 lg:grid-cols-3">
                 <p>
-                  <span className="text-zinc-500 dark:text-zinc-400">Login：</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    Login：
+                  </span>
                   {githubUser.login}
                 </p>
                 <p>
@@ -729,8 +828,10 @@ export default function Home() {
                   {githubUser.id}
                 </p>
                 <p className="sm:col-span-2 lg:col-span-1">
-                  <span className="text-zinc-500 dark:text-zinc-400">Email：</span>
-                  {githubUser.email ?? "-"}
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    Email：
+                  </span>
+                  {githubUser.email ?? '-'}
                 </p>
               </div>
 
@@ -743,31 +844,31 @@ export default function Home() {
           )}
         </section>
 
-      {!!searchResults.length && (
-        <section className={panelStyles}>
-          <h2 className="text-xl font-semibold tracking-tight">搜索结果</h2>
-          <ul className="mt-5 space-y-4">
-            {searchResults.map((post) => (
-              <li
-                key={post.id}
-                className="rounded-xl border border-zinc-200/60 bg-white/50 p-4 shadow-sm backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/20"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-base font-medium">{post.title}</p>
-                  <span className="text-xs text-zinc-500">
-                    {post.published ? "已发布" : "草稿"}
-                  </span>
-                </div>
-                {post.content && (
-                  <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                    {post.content}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {!!searchResults.length && (
+          <section className={panelStyles}>
+            <h2 className="text-xl font-semibold tracking-tight">搜索结果</h2>
+            <ul className="mt-5 space-y-4">
+              {searchResults.map((post) => (
+                <li
+                  key={post.id}
+                  className="rounded-xl border border-zinc-200/60 bg-white/50 p-4 shadow-sm backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/20"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-base font-medium">{post.title}</p>
+                    <span className="text-xs text-zinc-500">
+                      {post.published ? '已发布' : '草稿'}
+                    </span>
+                  </div>
+                  {post.content && (
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                      {post.content}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </main>
   );
