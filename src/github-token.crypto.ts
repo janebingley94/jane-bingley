@@ -19,7 +19,6 @@ function getKey(): Buffer {
       'Invalid GITHUB_TOKEN_ENCRYPTION_KEY (expected base64-encoded bytes).',
     );
   }
-  console.log('key length:', key);
   if (key.length !== 32) {
     throw new Error(
       `Invalid GITHUB_TOKEN_ENCRYPTION_KEY length: ${key.length} (expected 32 bytes).`,

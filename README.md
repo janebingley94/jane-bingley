@@ -98,6 +98,31 @@ $ yarn run test:cov
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
 
+### EC2 + PM2 (quick notes)
+
+- This repo runs **Nest API + Next (custom server)** in one process. Default port: `3000`.
+- Put production secrets on the server (do not commit them). See `.env.example`.
+
+Typical flow on EC2:
+
+```bash
+# 1) Install deps (root)
+yarn install
+
+# 2) Build (also builds web/ and runs prisma generate)
+yarn build
+
+# 3) DB migrations (recommended)
+yarn prisma migrate deploy
+
+# 4) Run with PM2
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+If you want to disable Next integration (API-only), set `NEXT_ENABLED=0` and run your frontend separately.
+
 If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
 
 ```bash
