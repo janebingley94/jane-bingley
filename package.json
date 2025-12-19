@@ -9,7 +9,7 @@
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "nest start --watch",
-    "build": "node scripts/build.mjs",
+    "build": "bash scripts/build.sh",
     "build:api": "nest build",
     "build:web": "yarn --cwd web run build",
     "github-token:list": "node --loader ts-node/esm scripts/github-token.ts list",

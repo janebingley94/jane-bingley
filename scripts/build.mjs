@@ -17,13 +17,22 @@ function run(command, args, options = {}) {
   });
 }
 
+const yarnEnv = {
+  ...process.env,
+  YARN_CACHE_FOLDER: join(process.cwd(), '.yarn-cache'),
+};
+
 const webDir = join(process.cwd(), 'web');
 const hasWeb = existsSync(join(webDir, 'package.json'));
 
 if (hasWeb && process.env.NEXT_ENABLED !== '0') {
-  await run('yarn', ['install'], { cwd: webDir });
-  await run('yarn', ['run', 'build'], { cwd: webDir });
+  await run(
+    'yarn',
+    ['install', '--non-interactive', '--network-timeout', '600000'],
+    { cwd: webDir, env: yarnEnv },
+  );
+  await run('yarn', ['run', 'build'], { cwd: webDir, env: yarnEnv });
 }
 
-await run('yarn', ['prisma', 'generate']);
-await run('yarn', ['run', 'build:api']);
+await run('yarn', ['prisma', 'generate'], { env: yarnEnv });
+await run('yarn', ['run', 'build:api'], { env: yarnEnv });
