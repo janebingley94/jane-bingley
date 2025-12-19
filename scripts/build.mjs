@@ -21,8 +21,8 @@ const webDir = join(process.cwd(), 'web');
 const hasWeb = existsSync(join(webDir, 'package.json'));
 
 if (hasWeb && process.env.NEXT_ENABLED !== '0') {
-  await run('yarn', ['--prefix', 'web', 'install']);
-  await run('yarn', ['--prefix', 'web', 'run', 'build']);
+  await run('yarn', ['install'], { cwd: webDir });
+  await run('yarn', ['run', 'build'], { cwd: webDir });
 }
 
 await run('yarn', ['prisma', 'generate']);
